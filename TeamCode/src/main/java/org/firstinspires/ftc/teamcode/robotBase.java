@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
+import static com.arcrobotics.ftclib.util.MathUtils.clamp;
+
 import androidx.core.content.pm.PermissionInfoCompat;
 
 import com.acmerobotics.dashboard.FtcDashboard;
@@ -9,19 +11,22 @@ import com.arcrobotics.ftclib.controller.PIDController;
 import com.arcrobotics.ftclib.hardware.ServoEx;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.AnalogInput;
 import com.qualcomm.robotcore.hardware.CRServo;
+import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
+import org.firstinspires.ftc.teamcode.util.Encoder;
 
 import java.util.List;
 
 @Config
-public abstract class robotBase extends LinearOpMode {
+public abstract class robotBase extends OpMode {
     protected SampleMecanumDrive drive;
 
     protected DcMotorEx slide;
@@ -35,43 +40,49 @@ public abstract class robotBase extends LinearOpMode {
     protected AnalogInput FrontL_Pos, FrontR_Pos;
     protected Servo Claw;
 
-
+    protected Encoder armEnc;
     private PIDController ArmPID = new PIDController(0, 0, 0);
     private PIDController SlidePID = new PIDController(0, 0, 0);
-    private PIDController WristLeftPID = new PIDController(0, 0, 0);
-    private PIDController WristRightPID = new PIDController(0, 0, 0);
+    //private PIDController WristLeftPID = new PIDController(0, 0, 0);
+    //private PIDController WristRightPID = new PIDController(0, 0, 0);
 
     /*------------------ARM_PIDF-----------------------*/
     public static double armTarget = 45;
-    public static double armP = 0.1;
+    public static double armP = 0.08;
+
+    public static double armP_hang = 0.1;
+
     public static double armI = 0.1;
     public static double armD = 0.004;
     public static double armF = 0;
-    public static double arm_f_coeff = 0.006;
+    public static double arm_f_coeff = 0.0053;
     public static double armOutput;
     public static double armPosNow = 0;
 
     public static double armUpLimit = 95;
 
-    public static double armBottomLimit = -2;
+    public static double armBottomLimit = 0;
 
     public static double armPowerMax = 1;
     public static double armPowerMin = -0.4;
 
     public static double arm2deg = 6.27;
 
-    /*------------------Slide_PIDF-----------------------*/
-    public static double slideP = 1;
-    public static double slideI = 0;
-    public static double slideD = 0.01;
+    public static double armEnc2deg = 8192 / 360;
 
-    public static double slideF = 0;
+
+    /*------------------Slide_PIDF-----------------------*/
+    public static double slideP = 0.5;
+    public static double slideI = 0;
+    public static double slideD = 0;
+
+    public static double slideP_hang = 1.5;
     public static double slide_f_coeff = 0;
 
     public static double slide_motorEnc = 103.8;
-    public static double slide_Ratio = 1/1.4;
+    public static double slide_Ratio = 1 / 1.4;
 
-    public static double slide2lenth = slide_motorEnc*slide_Ratio / 0.8;
+    public static double slide2lenth = slide_motorEnc * slide_Ratio / 0.8;
     public static double smax = 98;
     public static double smax0 = 76;
 
@@ -84,17 +95,9 @@ public abstract class robotBase extends LinearOpMode {
 
 
     /*-----------------wrist----------------------*/
-//    public static double wristLP = 0.008;
-//    public static double wristLI = 0;
-//    public static double wristLD = 0.0002;
-//    public static double wristRP = 0.008;
-//    public static double wristRI = 0;
-//    public static double wristRD = 0.0002;
-    public static double gear_ratio = 52 / 18;
-    public static double currentAngleLeft;
-    public static double currentAngleRight;
 
-    public static double MAX_POWER = 1; // 最大輸出功率
+    public static double gear_ratio = 2.888888;
+    public static double currentAngleRight;
     public static double tarAngleLeft = 0;  // 左側目標角度
     public static double tarAngleRight = 0; // 右側目標角度
 
@@ -114,8 +117,10 @@ public abstract class robotBase extends LinearOpMode {
             .build();
     double lift = 0, turn = 0;
 
+    public boolean initDone=false;
+
     @Override
-    public void runOpMode() throws InterruptedException {
+    public void init(){
 
         List<LynxModule> allHubs = hardwareMap.getAll(LynxModule.class);
 
@@ -129,7 +134,6 @@ public abstract class robotBase extends LinearOpMode {
         armL = hardwareMap.get(DcMotorEx.class, "armL");
         armR = hardwareMap.get(DcMotorEx.class, "armR");
 
-
         slide.setDirection(DcMotorSimple.Direction.FORWARD);
         armL.setDirection(DcMotorSimple.Direction.REVERSE);
         armR.setDirection(DcMotorSimple.Direction.FORWARD);
@@ -142,61 +146,101 @@ public abstract class robotBase extends LinearOpMode {
 
         FrontL_Pos = hardwareMap.get(AnalogInput.class, "lpos");
         FrontR_Pos = hardwareMap.get(AnalogInput.class, "rpos");
+        armEnc = new Encoder(hardwareMap.get(DcMotorEx.class, "armR"));
+        armEnc.setDirection(Encoder.Direction.REVERSE);
 
+        slide.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        slide.setPower(0);
+        slide.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+
+
+        armR.setPower(0);
+        armL.setPower(0);
+        armL.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        armL.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        armR.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        armR.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        //armPosNow = armL.getCurrentPosition() / arm2deg;
         robotInit();
+        initDone = true;
+        telemetry.addData("init","done");
+        telemetry.update();
+    }
+    public void init_loop(){
+        if(initDone){
+            robotInitLoop();
+        }
+    }
+    public void loop(){
         robotStart();
 
     }
 
-    protected abstract void robotInit();
 
-    protected abstract void robotStart() throws InterruptedException;
+    protected abstract void robotInit();
+    protected abstract void robotInitLoop();
+    protected abstract void robotStart();
 
 
     public void armTurn2angle(double target) {
-        target = Math.max(Math.min(target, armUpLimit), armBottomLimit);
+        armPosNow = armEnc.getCurrentPosition() / armEnc2deg;
 
+        target = clamp(target, armBottomLimit, armUpLimit);
+
+        double armkP;
         if (isHangingMode) {
             armF = 0; // 關閉F控制
-            armP= 0.2;
-            if(!gamepad1.isRumbling()) gamepad1.runRumbleEffect(effect);
+
+            armkP = armP_hang;
+            if (!gamepad1.isRumbling()) gamepad1.runRumbleEffect(effect);
         } else {
             gamepad1.stopRumble();
-            armP= 0.1;
+            armkP = armP;
 
-            armF = Math.cos(Math.toRadians(armPosNow)) * slidePosNow * arm_f_coeff;
+            armF = Math.cos(Math.toRadians(armPosNow)) * (slidePosNow ) * arm_f_coeff;
         }
 
-        ArmPID.setPID(armP, armI, armD);
+        ArmPID.setPID(armkP, armI, armD);
+        ArmPID.setTolerance(10);
         armOutput = ArmPID.calculate(armPosNow, target) + armF;
 
         if (isHangingMode) {
-            armOutput = Math.max(Math.min(armOutput, armPowerMax), -armPowerMax); // 移除下降限制
+            armOutput = clamp(armOutput, -armPowerMax, armPowerMax); // 移除下降限制
         } else {
-            if (armPosNow < 90) armOutput = Math.max(Math.min(armOutput, armPowerMax), armPowerMin);
+            if (armPosNow < 90) armOutput = clamp(armOutput, armPowerMin, armPowerMax);
             else armOutput = Math.min(armOutput, armPowerMax);
         }
 
         armL.setPower(armOutput);
         armR.setPower(armOutput);
+
+
     }
 
     public void slideToPosition(double slidePos) {
+
+        slidePosNow = (slide.getCurrentPosition() / slide2lenth) * 2 + smin;
+
         if (armPosNow < 60)
             slidePos = Math.max(Math.min(slidePos, Math.min(slidePos, smax0)), smin);
         else
             slidePos = Math.max(Math.min(slidePos, smax), smin);
 
+        double slidekp;
+        if (isHangingMode) {
+            slidekp = slideP_hang;
+        } else
+            slidekp = slideP;
 
-        SlidePID.setPID(slideP, slideI, slideD);
+        SlidePID.setPID(slidekp, slideI, slideD);
         slidePower = SlidePID.calculate(slidePosNow, slidePos);
         slide.setPower(slidePower);
     }
 
     public void wristToPosition(double liftAng, double turnAng) {
         turnAng /= gear_ratio;//齒輪比
-        turnAng = Math.max(Math.min(turnAng, turn_Max), turn_Mini);
-        liftAng = Math.max(Math.min(liftAng, lift_Max), lift_Mini);
+        turnAng = clamp(turnAng, turn_Mini, turn_Max);
+        liftAng = clamp(liftAng, lift_Mini, lift_Max);
 
         turnAng -= turn_Offset;
         liftAng -= lift_Offset;

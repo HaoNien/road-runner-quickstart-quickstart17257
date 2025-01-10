@@ -14,18 +14,41 @@ public class MeepMeepTesting {
         RoadRunnerBotEntity myBot = new DefaultBotBuilder(meepMeep)
                 // Set bot constraints: maxVel, maxAccel, maxAngVel, maxAngAccel, track width
                 .setConstraints(60, 60, Math.toRadians(180), Math.toRadians(180), 12)
-                .followTrajectorySequence(drive -> drive.trajectorySequenceBuilder(new Pose2d(-8, 60, Math.toRadians(90)))
-                        .splineTo(new Vector2d(-8,40),Math.toRadians(270))
-                        .strafeLeft(-20)
-                        .strafeTo(new Vector2d(-38, 12))
-                        //.strafeTo(new Vector2d(-45, 50))
-                        //.strafeTo(new Vector2d(-45, 12))
+//                .followTrajectorySequence(drive -> drive.trajectorySequenceBuilder(new Pose2d(36, 62, Math.toRadians(270)))
+//
+//                        .splineTo(new Vector2d(38,40),Math.toRadians(300))
+//
+//                        //.strafeTo(new Vector2d(-45, 50))
+//                        //.strafeTo(new Vector2d(-45, 12))
+//
+//
+//
+//                        //.turn(Math.toRadians(90))
+//
+//                        .build());
+                .followTrajectorySequence(drive -> drive.trajectorySequenceBuilder(new Pose2d(-10, 60, Math.toRadians(270)))
+
+                        .forward(26)
+                        .back(20)
+                        //.forward(26)
+                        //.splineTo(new Vector2d(-38,40),Math.toRadians(90))
+                        //.splineToConstantHeading(new Vector2d(-38,40),Math.toRadians(90))
+                        .turn(Math.toRadians(-45))
+                        .splineTo(new Vector2d(-29,41),Math.toRadians(220))
+                        .turn(Math.toRadians(-60))
+                        .turn(Math.toRadians(60))
+
+                        .strafeTo(new Vector2d(-32,41))
+                        .strafeTo(new Vector2d(-10, 35))
+                        //.strafeRight()
+                //.strafeTo(new Vector2d(-45, 50))
+                //.strafeTo(new Vector2d(-45, 12))
 
 
 
-                        //.turn(Math.toRadians(90))
+                //.turn(Math.toRadians(90))
 
-                        .build());
+                .build());
 
 
         meepMeep.setBackground(MeepMeep.Background.FIELD_INTOTHEDEEP_JUICE_DARK)
