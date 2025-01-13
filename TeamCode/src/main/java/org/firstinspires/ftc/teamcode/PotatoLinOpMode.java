@@ -66,7 +66,7 @@ public class PotatoLinOpMode extends robotBase {
         wristToPosition(-90, 0);
         telemetry.addData("Status", "Initialized");
         telemetry.update();
-        // 在 INIT 階段持續維持手臂的角度直到 waitForStart()
+
 
     }
 
@@ -81,21 +81,14 @@ public class PotatoLinOpMode extends robotBase {
 
     @Override
     public void robotStart() {
-        // run until the end of the match (driver presses STOP)
-
-
 
         long currentTime = System.currentTimeMillis();
         loopCount++; // 每次迴圈執行時增加計數器
-        //armPosNow = armL.getCurrentPosition() / arm2deg;
-        //armPosNow = armR.getCurrentPosition()/armEnc2deg;
-
-        //slidePosNow = (slide.getCurrentPosition() / slide2lenth) * 2 + smin;
 
 
-        // 管理 B 按鈕的狀態機
+
+        // 管理按鈕的狀態機
         manageStateMachineB();
-        // 管理 Y 按鈕的狀態機
         manageStateMachineY();
         manageStateMachineX();
         manageStateMachineA();
@@ -103,6 +96,13 @@ public class PotatoLinOpMode extends robotBase {
         if (gamepad2.left_bumper) Claw.setPosition(claw_Open);
         if (gamepad2.right_bumper) Claw.setPosition(claw_Close);
 
+
+        if (gamepad2.left_stick_button && !togglePressed) {
+            isHangingMode = !isHangingMode; // 切換模式
+            togglePressed = true; // 防抖動
+        } else if (!gamepad2.left_stick_button) {
+            togglePressed = false; // 重置防抖動
+        }
         //slide
         double gp2_r_Y = gamepad2.right_stick_y;
 
@@ -111,12 +111,9 @@ public class PotatoLinOpMode extends robotBase {
         slideTarget = clamp(slideTarget,smin,smax);
 
         slideToPosition(slideTarget);
-        if (gamepad2.left_stick_button && !togglePressed) {
-            isHangingMode = !isHangingMode; // 切換模式
-            togglePressed = true; // 防抖動
-        } else if (!gamepad2.left_stick_button) {
-            togglePressed = false; // 重置防抖動
-        }
+
+
+
         double gp2_l_Y = gamepad2.left_stick_y;
 
         if (gp2_l_Y < -0.3 || gp2_l_Y > 0.3) armTarget = armPosNow + (gp2_l_Y * arm_Speed);
@@ -150,16 +147,18 @@ public class PotatoLinOpMode extends robotBase {
 
         double axial, lateral, yaw;
         if (Math.abs(gp1ly) < 0.7 && Math.abs(gp1ly) > 0.1) axial = gp1ly / 2;
+        else if (Math.abs(gp1ly) < 0.1) axial=0;
         else axial = gp1ly;
         if (Math.abs(gp1lx) < 0.7 && Math.abs(gp1lx) > 0.1) lateral = gp1lx / 2;
+        else if (Math.abs(gp1lx) < 0.1) lateral=0;
         else lateral = gp1lx;
         if (Math.abs(gp1rx) < 0.7 && Math.abs(gp1rx) > 0.1)
             yaw = (gp1rx) + (gp1ltr / 3) - (gp1rtr / 3);
+        else if (Math.abs(gp1lx) < 0.1) yaw =0;
         else yaw = gp1rx*1.33 + (gp1ltr / 3) - (gp1rtr / 3);
-
-
-
         drive.setDrivePower(new Pose2d(axial, lateral, yaw));
+
+
         telemetry.addData("Loop Frequency", "%d Hz", loopCountHZ);
         // 每隔一秒計算一次頻率
         if (currentTime - lastTime >= 1000) {
